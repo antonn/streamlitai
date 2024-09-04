@@ -22,7 +22,7 @@ collection = db["debit_transaction"]
 
 function_search_transactions = {
     "name": "search_transactions",
-    "description": "Search for user payment transaction based on various criteria most of them are optional. The transactions are debit ones which are the transactions where the user is the sender.",    
+    "description": "Search for user payment transaction based on various criteria most of them are optional. By default transactions are sorted by txndate. i.e it shows recent txns first. The transactions are debit ones which are the transactions where the user is the sender.",    
     "parameters": {
         "type": "object",
         "properties": {
@@ -46,14 +46,7 @@ function_search_transactions = {
                 "type": "string",
                 "description": "The currency used in the transaction (e.g., 'CHF').",
             },
-            "category": {
-                "type": "string",
-                "description": "The category of the transaction (e.g., 'Groceries', 'Shopping', 'Bills').",
-            },
-            "payment_channel": {
-                "type": "string",
-                "description": "The payment channel used in the transaction (e.g., 'Domestic', 'SEPA', 'International').",
-            },       
+           
             "receiver": {
                 "type": "string",
                 "description": "The name of the receiver or beneficiary of the transaction.",
@@ -76,7 +69,7 @@ function_search_transactions = {
             },
             "limit": {
                 "type": "integer",
-                "description": "The maximum number of transactions to return. Defaults to 10 if not provided.",               
+                "description": "The maximum number of transactions to return.",               
             },
 
         },
@@ -90,19 +83,26 @@ def search_transactions(
     date_to: Optional[datetime] = None,
     status: Optional[str] = None,
     currency: Optional[str] = None,
-    category: Optional[str] = None,
-    payment_channel: Optional[str] = None,
     receiver: Optional[str] = None,
     receiver_accountnumber: Optional[str] = None,
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
     payment_reason: Optional[str] = None,
-    limit: Optional[int] = 10  # Default limit to the last 10 transactions
+    limit: Optional[int] = 100  # Default limit to the last 10 transactions
 ) -> List[dict]:
     
     # Build the query dictionary dynamically
     print(f"Searching transactions with params: {locals()}")
     query = {}    
+
+    # Hardcoded fields to exclude from the returned result
+    projection = {
+        "category": 0,
+        "payment_channel": 0,
+        "receiver_accountnumber": 0,
+        "charge": 0,       
+        "transaction_id": 0,
+    }
     
     if date_from and date_to:
         query["txndate"] = {"$gte": date_from.isoformat(), "$lte": date_to.isoformat()}
@@ -114,32 +114,41 @@ def search_transactions(
         query["status"] = status
     if transaction_id:
         query["transaction_id"] = transaction_id
+        # clear all the fields in the projection if transaction_id is provided
+        projection = {}
     if currency:
         query["currency"] = currency
-    if category:
-        query["category"] = category
-    if payment_channel:
-        query["payment_channel"] = payment_channel
     if receiver:
         query["receiver"] = receiver
+        # clear all the fields in the projection
+        projection = {}
     if receiver_accountnumber:
         query["receiver_accountnumber"] = receiver_accountnumber
+        projection["receiver_accountnumber"] = 1
     if min_amount and max_amount:
         query["amount"] = {"$gte": min_amount, "$lte": max_amount}
     elif min_amount:
         query["amount"] = {"$gte": min_amount}
     elif max_amount:
         query["amount"] = {"$lte": max_amount}
-    if payment_reason:
-        query["payment_reason"] = {"$regex": payment_reason, "$options": "i"}
     if limit:
         limit = int(limit)
-    else:
-        limit = 10
-
-
+    
+    # Update to use text search for payment_reason
+    if payment_reason:
+        query["$text"] = {"$search": payment_reason}
+    
     # Execute the query
-    results = list(collection.find(query).sort("txndate", -1).limit(limit))
+    if limit is None:
+        results = list(collection.find(query,projection).sort("txndate", -1))
+    else:
+        results = list(collection.find(query,projection).sort("txndate", -1).limit(limit))
+
+    # Reformat the txndate to dd mm yyyy format in the returned results
+    for transaction in results:
+        if 'txndate' in transaction:
+            transaction['txndate'] = datetime.fromisoformat(transaction['txndate']).strftime('%d %m %Y')
+
     return results
 
 def create_transaction(       
@@ -193,7 +202,7 @@ function_create_transaction = {
             },
             "receiver_accountnumber": {
                 "type": "string",
-                "description": "The account number of the receiver in the transaction in IBAN format.",
+                "description": "The account number of the receiver in the transaction in IBAN format. This is mandatory.",
             },
         },
         "required": ["amount", "currency", "receiver", "payment_reason","receiver_accountnumber"],
