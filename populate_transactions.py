@@ -6,7 +6,7 @@ import random
 
 # Setup Faker and MongoDB connection
 fake = Faker()
-client = MongoClient("mongodb+srv://antjohns:UyY8OOOQCCp17TmF@cluster0.cw6ev.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+# client = MongoClient("mongodb+srv://antjohns: @cluster0.cw6ev.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client["payments"]  # Replace with your database name
 debit_collection = db["debit_transaction"]
 credit_collection = db["credit_transaction"]
