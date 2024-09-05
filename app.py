@@ -39,9 +39,27 @@ def getopenairesponse(messages):
  
 st.title("Banking AI Chatbot")
 
+# Intialize current date and time
+current_datetime = datetime.now()
+
+system_messages = [
+    {"role": "system", "content": "You are a helpful customer support of a bank to assist in user queries related to their transactions. Please strictly ignore any questions which are not banking relevant with polite reply." +
+      "Use the supplied tools to assist the user. Please note that current date and time is " + current_datetime.strftime("%Y-%m-%d %H:%M:%S") +
+      """. Wherever table output is required give the output in a table markdown format like below example.
+     
+        | Name | Age | City         |
+        |------|-----|--------------|
+        | John | 28  | New York     |
+        | Doe  | 34  | Los Angeles  |
+        | Jane | 29  | Chicago      |
+        | Smith| 42  | Houston      | 
+      
+      """},
+    ]
+
 # Initialize chat history
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = system_messages
 
 # Display chat messages from history on app rerun
 for message in st.session_state.messages:
